@@ -15,6 +15,7 @@ RUN python -m playwright install chromium
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8000
+ENV GUNICORN_CMD_ARGS="--timeout 120 --workers 2 --threads 4 --worker-class gthread"
 
 # Command to run the application
 CMD gunicorn api:app --bind 0.0.0.0:$PORT
