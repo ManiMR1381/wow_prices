@@ -15,7 +15,7 @@ def extract_price(input_str):
 
 def get_usdt_price(playwright):
     """Fetch the USDT price from Nobitex."""
-    browser = playwright.chromium.launch(headless=True)
+    browser = playwright.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
     context = browser.new_context()
     page = context.new_page()
     page.goto("https://nobitex.ir/panel/exchange/usdt-irt")
@@ -35,7 +35,7 @@ def get_usdt_price(playwright):
 
 def get_best_offer_Tarren(playwright):
     """Fetch the best offer from G2G."""
-    browser = playwright.chromium.launch(headless=True)
+    browser = playwright.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
     context = browser.new_context()
     page = context.new_page()
     page.goto(
@@ -50,7 +50,7 @@ def get_best_offer_Tarren(playwright):
 
 def get_best_offer_Kazzak(playwright):
     """Fetch the best offer from G2G."""
-    browser = playwright.chromium.launch(headless=True)
+    browser = playwright.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
     context = browser.new_context()
     page = context.new_page()
     page.goto(
