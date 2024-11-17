@@ -1,13 +1,18 @@
 import re
 import logging
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204  # Return a 204 No Content response for favicon requests
 
 def remove_commas(number_str):
     """Remove commas and convert to an integer."""
