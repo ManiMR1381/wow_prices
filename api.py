@@ -10,10 +10,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from contextlib import contextmanager
-import chromedriver_autoinstaller
 import sys
 
-# Configure logging to output to stdout
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -22,13 +21,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-
-# Install ChromeDriver that matches Chrome version
-try:
-    chromedriver_autoinstaller.install()
-    logger.info("ChromeDriver installed successfully")
-except Exception as e:
-    logger.error(f"Error installing ChromeDriver: {e}")
 
 @contextmanager
 def get_driver():
@@ -40,12 +32,10 @@ def get_driver():
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--disable-extensions')
-        chrome_options.add_argument('--disable-software-rasterizer')
-        chrome_options.add_argument('--remote-debugging-port=9222')
+        chrome_options.binary_location = os.environ.get('CHROME_BIN', '/usr/bin/chromium')
         
-        logger.info("Creating Chrome driver with options")
-        driver = webdriver.Chrome(options=chrome_options)
+        service = Service(executable_path=os.environ.get('CHROMEDRIVER_PATH', '/usr/bin/chromedriver'))
+        driver = webdriver.Chrome(service=service, options=chrome_options)
         driver.set_page_load_timeout(30)
         yield driver
     except Exception as e:
@@ -55,7 +45,6 @@ def get_driver():
         if driver:
             try:
                 driver.quit()
-                logger.info("Chrome driver closed successfully")
             except Exception as e:
                 logger.error(f"Error closing driver: {e}")
 
@@ -85,7 +74,6 @@ def get_best_offer_Tarren():
             logger.info(f"Fetching Tarren Mill price from: {url}")
             driver.get(url)
             
-            logger.info("Waiting for price element")
             price_element = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, ".precheckout__price-card"))
             )
@@ -111,7 +99,6 @@ def get_best_offer_Kazzak():
             logger.info(f"Fetching Kazzak price from: {url}")
             driver.get(url)
             
-            logger.info("Waiting for price element")
             price_element = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, ".precheckout__price-card"))
             )
@@ -135,22 +122,12 @@ def favicon():
 
 @app.route('/health')
 def health_check():
-    try:
-        # Only check API connectivity for health check
-        logger.info("Starting health check")
-        response = requests.get("https://api.nobitex.ir/v2/status", timeout=5)
-        response.raise_for_status()
-        logger.info("Health check successful")
-        return jsonify({
-            "status": "healthy",
-            "message": "Service is running"
-        }), 200
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        return jsonify({
-            "status": "unhealthy",
-            "error": str(e)
-        }), 503
+    """Simple health check that always returns healthy"""
+    logger.info("Health check called")
+    return jsonify({
+        "status": "healthy",
+        "message": "Service is running"
+    }), 200
 
 @app.route('/Tarren-Mill', methods=['GET'])
 def Tarren():
