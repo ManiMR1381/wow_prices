@@ -14,10 +14,12 @@ RUN apt-get update && apt-get install -y wget gnupg2 unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Install ChromeDriver
-RUN wget -q "https://chromedriver.storage.googleapis.com/119.0.6045.105/chromedriver_linux64.zip" -O /tmp/chromedriver.zip \
-    && unzip /tmp/chromedriver.zip -d /usr/local/bin/ \
+RUN wget -O /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/114.0.5735.90/chromedriver_linux64.zip \
+    && cd /tmp \
+    && unzip chromedriver.zip \
+    && mv chromedriver /usr/local/bin/ \
     && chmod +x /usr/local/bin/chromedriver \
-    && rm -rf /tmp/chromedriver.zip
+    && rm -f /tmp/chromedriver.zip
 
 # Set Chrome paths
 ENV CHROME_BIN=/usr/bin/google-chrome
