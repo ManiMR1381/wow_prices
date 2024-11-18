@@ -4,16 +4,33 @@ playwright==1.41.1
 gunicorn==21.2.0
 
 # Procfile
-web: gunicorn app:app
+web: gunicorn app:app --timeout 120 --workers 2 --threads 4
 
 # railway.toml
 [build]
 builder = "nixpacks"
-buildCommand = "pip install -r requirements.txt && playwright install chromium && playwright install-deps"
+buildCommand = """
+pip install -r requirements.txt
+playwright install chromium --with-deps
+"""
 
 [deploy]
-startCommand = "gunicorn app:app"
+startCommand = "gunicorn app:app --timeout 120 --workers 2 --threads 4"
 healthcheckPath = "/health"
-healthcheckTimeout = 100
+healthcheckTimeout = 300
 restartPolicyType = "on-failure"
 restartPolicyMaxRetries = 3
+
+[deploy.phases]
+start = "gunicorn app:app --timeout 120 --workers 2 --threads 4"
+
+[[deploy.services]]
+name = "web"
+protocol = "http"
+internal_port = 8080
+processes = ["app"]
+
+[deploy.services.concurrency]
+type = "connections"
+hard_limit = 25
+soft_limit = 20
