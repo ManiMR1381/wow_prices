@@ -20,6 +20,20 @@ RUN apt-get update && apt-get install -y \
     libxkbcommon0 \
     libx11-6 \
     libx11-xcb1 \
+    # GTK and ATK dependencies
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libgtk-3-0 \
+    libgbm1 \
+    libasound2 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libpango-1.0-0 \
+    libcairo2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Chrome for Testing and ChromeDriver
