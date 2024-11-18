@@ -39,4 +39,4 @@ ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
 EXPOSE $PORT
 
 # Start command with increased timeout
-CMD ["gunicorn", "api:app", "--bind", "0.0.0.0:5000", "--timeout", "180", "--workers", "2"]
+CMD ["gunicorn", "api:app", "--bind", "0.0.0.0:${PORT:-5000}", "--timeout", "180", "--workers", "2"]
