@@ -6,7 +6,20 @@ ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y wget gnupg2 unzip curl xvfb \
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg2 \
+    unzip \
+    curl \
+    xvfb \
+    libglib2.0-0 \
+    libnss3 \
+    libgconf-2-4 \
+    libfontconfig1 \
+    libxcb1 \
+    libxkbcommon0 \
+    libx11-6 \
+    libx11-xcb1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Chrome for Testing and ChromeDriver
