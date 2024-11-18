@@ -1,0 +1,19 @@
+# requirements.txt
+Flask==2.3.3
+playwright==1.41.1
+gunicorn==21.2.0
+
+# Procfile
+web: gunicorn app:app
+
+# railway.toml
+[build]
+builder = "nixpacks"
+buildCommand = "pip install -r requirements.txt && playwright install chromium && playwright install-deps"
+
+[deploy]
+startCommand = "gunicorn app:app"
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 3
