@@ -1,6 +1,12 @@
 [build]
 builder = "nixpacks"
-buildCommand = "pip install -r requirements.txt && playwright install chromium && playwright install-deps"
+buildCommand = """
+apt-get update && \
+apt-get install -y python3-dev build-essential && \
+pip install --no-cache-dir -r requirements.txt && \
+playwright install chromium && \
+playwright install-deps
+"""
 
 [deploy]
 startCommand = "gunicorn api:app --worker-class gevent --workers 2 --timeout 180 --graceful-timeout 120 --max-requests 1000 --max-requests-jitter 50"
