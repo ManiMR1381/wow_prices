@@ -12,6 +12,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from contextlib import contextmanager
 import sys
 import subprocess
+import time
 
 # Configure logging
 logging.basicConfig(
@@ -30,21 +31,14 @@ def verify_chrome_setup():
     
     logger.info(f"Chrome binary location: {chrome_bin}")
     logger.info(f"ChromeDriver path: {chromedriver_path}")
+    logger.info(f"DISPLAY environment: {os.environ.get('DISPLAY', 'not set')}")
     
-    # Check Chrome version
-    try:
-        chrome_version = subprocess.check_output([chrome_bin, '--version'], stderr=subprocess.STDOUT)
-        logger.info(f"Chrome version: {chrome_version.decode().strip()}")
-    except Exception as e:
-        logger.error(f"Error checking Chrome version: {e}")
+    if not os.path.exists(chrome_bin):
+        logger.error(f"Chrome binary not found at {chrome_bin}")
         return False
-    
-    # Check ChromeDriver version
-    try:
-        chromedriver_version = subprocess.check_output([chromedriver_path, '--version'], stderr=subprocess.STDOUT)
-        logger.info(f"ChromeDriver version: {chromedriver_version.decode().strip()}")
-    except Exception as e:
-        logger.error(f"Error checking ChromeDriver version: {e}")
+        
+    if not os.path.exists(chromedriver_path):
+        logger.error(f"ChromeDriver not found at {chromedriver_path}")
         return False
     
     return True
@@ -55,12 +49,15 @@ def get_driver():
     driver = None
     try:
         chrome_options = Options()
-        chrome_options.add_argument('--headless')
+        chrome_options.add_argument('--headless=new')
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-gpu')
         chrome_options.add_argument('--disable-software-rasterizer')
         chrome_options.add_argument('--disable-features=VizDisplayCompositor')
+        chrome_options.add_argument('--disable-extensions')
+        chrome_options.add_argument('--disable-setuid-sandbox')
+        chrome_options.add_argument('--window-size=1280,1024')
         chrome_options.binary_location = os.environ.get('CHROME_BIN', '/usr/bin/chromium')
         
         service = Service(executable_path=os.environ.get('CHROMEDRIVER_PATH', '/usr/bin/chromedriver'))
@@ -162,6 +159,8 @@ def health_check():
             
         # Try to create a test driver
         with get_driver() as driver:
+            # Test navigation to a simple page
+            driver.get("about:blank")
             logger.info("Successfully created test Chrome driver")
             return jsonify({
                 "status": "healthy",
