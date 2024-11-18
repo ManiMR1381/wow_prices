@@ -11,6 +11,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from contextlib import contextmanager
 import sys
+import subprocess
 
 # Configure logging
 logging.basicConfig(
@@ -22,6 +23,32 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+def verify_chrome_setup():
+    """Verify Chrome and ChromeDriver are properly set up"""
+    chrome_bin = os.environ.get('CHROME_BIN', '/usr/bin/chromium')
+    chromedriver_path = os.environ.get('CHROMEDRIVER_PATH', '/usr/bin/chromedriver')
+    
+    logger.info(f"Chrome binary location: {chrome_bin}")
+    logger.info(f"ChromeDriver path: {chromedriver_path}")
+    
+    # Check Chrome version
+    try:
+        chrome_version = subprocess.check_output([chrome_bin, '--version'], stderr=subprocess.STDOUT)
+        logger.info(f"Chrome version: {chrome_version.decode().strip()}")
+    except Exception as e:
+        logger.error(f"Error checking Chrome version: {e}")
+        return False
+    
+    # Check ChromeDriver version
+    try:
+        chromedriver_version = subprocess.check_output([chromedriver_path, '--version'], stderr=subprocess.STDOUT)
+        logger.info(f"ChromeDriver version: {chromedriver_version.decode().strip()}")
+    except Exception as e:
+        logger.error(f"Error checking ChromeDriver version: {e}")
+        return False
+    
+    return True
+
 @contextmanager
 def get_driver():
     """Context manager for browser handling"""
@@ -32,6 +59,8 @@ def get_driver():
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-gpu')
+        chrome_options.add_argument('--disable-software-rasterizer')
+        chrome_options.add_argument('--disable-features=VizDisplayCompositor')
         chrome_options.binary_location = os.environ.get('CHROME_BIN', '/usr/bin/chromium')
         
         service = Service(executable_path=os.environ.get('CHROMEDRIVER_PATH', '/usr/bin/chromedriver'))
@@ -122,12 +151,28 @@ def favicon():
 
 @app.route('/health')
 def health_check():
-    """Simple health check that always returns healthy"""
-    logger.info("Health check called")
-    return jsonify({
-        "status": "healthy",
-        "message": "Service is running"
-    }), 200
+    """Health check that verifies Chrome setup"""
+    try:
+        if not verify_chrome_setup():
+            logger.error("Chrome setup verification failed")
+            return jsonify({
+                "status": "unhealthy",
+                "message": "Chrome setup verification failed"
+            }), 500
+            
+        # Try to create a test driver
+        with get_driver() as driver:
+            logger.info("Successfully created test Chrome driver")
+            return jsonify({
+                "status": "healthy",
+                "message": "Service is running with Chrome properly configured"
+            }), 200
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return jsonify({
+            "status": "unhealthy",
+            "message": str(e)
+        }), 500
 
 @app.route('/Tarren-Mill', methods=['GET'])
 def Tarren():
@@ -166,6 +211,13 @@ def Kazzak():
     except Exception as e:
         logger.error(f"Error processing Kazzak request: {e}")
         return jsonify({"error": str(e)}), 500
+
+# Startup verification
+logger.info("Starting Beauty World Price Scraper API")
+if not verify_chrome_setup():
+    logger.error("Failed to verify Chrome setup at startup")
+    sys.exit(1)
+logger.info("Chrome setup verified successfully")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
