@@ -1,7 +1,7 @@
+greenlet==2.0.2
+gevent==22.10.2
 flask==3.0.0
 Werkzeug==3.0.1
 gunicorn==21.2.0
 playwright==1.39.0
 python-dotenv==1.0.0
-greenlet==3.0.1
-gevent==23.9.1
