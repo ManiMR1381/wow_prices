@@ -162,7 +162,15 @@ def Kazzak():
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    return jsonify({"status": "healthy"}), 200
+    try:
+        # Test if we can launch a browser
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
+            browser.close()
+        return jsonify({"status": "healthy", "message": "Browser test successful"}), 200
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return jsonify({"status": "unhealthy", "error": str(e)}), 503
 
 if __name__ == '__main__':
     import os
