@@ -7,14 +7,15 @@ buildCommand = "pip install -r requirements.txt && playwright install chromium -
 startCommand = "gunicorn app:app --timeout 120 --workers 2 --threads 4"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
-restartPolicyType = "on-failure"
-restartPolicyMaxRetries = 3
 
 [[services]]
 name = "web"
 protocol = "http"
 internal_port = 8080
-processes = ["app"]
+
+[services.restart_policy]
+condition = "on-failure"
+max_retries = 3
 
 [services.concurrency]
 type = "connections"
