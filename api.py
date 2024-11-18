@@ -1,9 +1,16 @@
 import re
 import logging
 import os
-from flask import Flask, jsonify, send_from_directory
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+from flask import Flask, jsonify
+import requests
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from contextlib import contextmanager
+import chromedriver_autoinstaller
 
 # Configure logging
 logging.basicConfig(
@@ -14,134 +21,113 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+# Install ChromeDriver that matches Chrome version
+chromedriver_autoinstaller.install()
+
 @contextmanager
-def get_browser():
+def get_driver():
     """Context manager for browser handling"""
-    playwright = None
-    browser = None
+    driver = None
     try:
-        playwright = sync_playwright().start()
-        browser = playwright.chromium.launch(
-            headless=True,
-            args=['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
-        )
-        yield browser
-    finally:
-        if browser:
-            try:
-                browser.close()
-            except Exception as e:
-                logger.error(f"Error closing browser: {e}")
-        if playwright:
-            try:
-                playwright.stop()
-            except Exception as e:
-                logger.error(f"Error stopping playwright: {e}")
-
-@app.route('/favicon.ico')
-def favicon():
-    return '', 204
-
-def remove_commas(number_str):
-    """Remove commas and convert to an integer."""
-    try:
-        return int(number_str.replace(',', ''))
-    except (ValueError, AttributeError) as e:
-        logger.error(f"Error converting number: {e}")
-        return None
-
-def extract_price(input_str):
-    """Extract the first floating-point number from a string."""
-    try:
-        match = re.search(r"\d+\.\d+", input_str)
-        return float(match.group()) if match else None
-    except (AttributeError, ValueError) as e:
-        logger.error(f"Error extracting price: {e}")
-        return None
-
-def get_usdt_price(browser):
-    """Fetch the USDT price from Nobitex."""
-    try:
-        context = browser.new_context()
-        page = context.new_page()
-        page.set_default_timeout(30000)  # 30 seconds timeout
+        chrome_options = Options()
+        chrome_options.add_argument('--headless')
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument('--disable-gpu')
+        chrome_options.add_argument('--disable-extensions')
+        chrome_options.add_argument('--disable-software-rasterizer')
         
-        logger.info("Fetching USDT price from Nobitex...")
-        page.goto("https://nobitex.ir/panel/exchange/usdt-irt")
-        price = page.locator(
-            "#nobitex-panel > div > div.nobitex-panel__main.sidebar-is-minimize > "
-            "div.nobitex-panel__main--nuxt > div.mb-40 > div.max-w-1730px.mx-auto > "
-            "div.exchange.d-flex.flex-column.text-aligned.pb-8.pb-32-md > "
-            "div.exchange__main.d-flex.mx-8-md.mx-8-lg.mx-8-xl > "
-            "div.exchange__main--overview.d-flex.flex-column-reverse.flex-xl-row.w-100.ml-8-multi-md.ml-8-multi-xl > "
-            "div.exchange-order-list.mr-8-multi-md.position-relative.custom-scroll-bar.w-100.card-box > "
-            "div:nth-child(2) > div > div.exchange-table-container__tables > div:nth-child(3) > "
-            "div.exchange-table.mb-0.h-100 > div > div:nth-child(10) > div.item-price.exchange-table__row--column.px-8.flex-1.text-right.fs-15.fw-bold.py-1.text-success"
-        ).inner_text()
-        logger.info(f"USDT price fetched: {price}")
-        return remove_commas(price)
-    except PlaywrightTimeout as e:
-        logger.error(f"Timeout error fetching USDT price: {e}")
+        driver = webdriver.Chrome(options=chrome_options)
+        driver.set_page_load_timeout(30)
+        yield driver
+    finally:
+        if driver:
+            try:
+                driver.quit()
+            except Exception as e:
+                logger.error(f"Error closing driver: {e}")
+
+def get_usdt_price():
+    """Fetch the USDT price from Nobitex API."""
+    try:
+        url = "https://api.nobitex.ir/v2/orderbook/USDTIRT"
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        if 'lastTradePrice' in data:
+            price = float(data['lastTradePrice'])
+            logger.info(f"USDT price fetched: {price}")
+            return price
         return None
     except Exception as e:
         logger.error(f"Error fetching USDT price: {e}")
         return None
 
-def get_best_offer_Tarren(browser):
+def get_best_offer_Tarren():
     """Fetch the best offer from G2G."""
-    try:
-        context = browser.new_context()
-        page = context.new_page()
-        page.set_default_timeout(30000)  # 30 seconds timeout
-        
-        logger.info("Fetching Tarren Mill price from G2G...")
-        page.goto(
-            "https://www.g2g.com/offer/Tarren-Mill--EU----Horde?service_id=lgc_service_1&brand_id=lgc_game_2299"
-            "&region_id=ac3f85c1-7562-437e-b125-e89576b9a38e&fa=lgc_2299_dropdown_17%3Algc_2299_dropdown_17_42127"
-            "&sort=lowest_price&include_offline=1"
-        )
-        best_offer = page.locator(".precheckout__price-card").inner_text()
-        logger.info(f"Tarren Mill price fetched: {best_offer}")
-        return extract_price(best_offer)
-    except PlaywrightTimeout as e:
-        logger.error(f"Timeout error fetching Tarren price: {e}")
-        return None
-    except Exception as e:
-        logger.error(f"Error fetching Tarren price: {e}")
-        return None
+    with get_driver() as driver:
+        try:
+            url = "https://www.g2g.com/offer/Tarren-Mill--EU----Horde?service_id=lgc_service_1&brand_id=lgc_game_2299&region_id=ac3f85c1-7562-437e-b125-e89576b9a38e&fa=lgc_2299_dropdown_17%3Algc_2299_dropdown_17_42127&sort=lowest_price&include_offline=1"
+            driver.get(url)
+            
+            # Wait for price element to be present
+            price_element = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, ".precheckout__price-card"))
+            )
+            price_text = price_element.text
+            
+            # Extract price using regex
+            price_match = re.search(r'\d+\.\d+', price_text)
+            if price_match:
+                price = float(price_match.group())
+                logger.info(f"Tarren Mill price fetched: {price}")
+                return price
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching Tarren price: {e}")
+            return None
 
-def get_best_offer_Kazzak(browser):
+def get_best_offer_Kazzak():
     """Fetch the best offer from G2G."""
-    try:
-        context = browser.new_context()
-        page = context.new_page()
-        page.set_default_timeout(30000)  # 30 seconds timeout
-        
-        logger.info("Fetching Kazzak price from G2G...")
-        page.goto(
-            "https://www.g2g.com/offer/Kazzak--EU----Horde?service_id=lgc_service_1&brand_id=lgc_game_2299"
-            "&region_id=ac3f85c1-7562-437e-b125-e89576b9a38e&fa=lgc_2299_dropdown_17%3Algc_2299_dropdown_17_41959"
-            "&sort=lowest_price&include_offline=1"
-        )
-        best_offer = page.locator(".precheckout__price-card").inner_text()
-        logger.info(f"Kazzak price fetched: {best_offer}")
-        return extract_price(best_offer)
-    except PlaywrightTimeout as e:
-        logger.error(f"Timeout error fetching Kazzak price: {e}")
-        return None
-    except Exception as e:
-        logger.error(f"Error fetching Kazzak price: {e}")
-        return None
+    with get_driver() as driver:
+        try:
+            url = "https://www.g2g.com/offer/Kazzak--EU----Horde?service_id=lgc_service_1&brand_id=lgc_game_2299&region_id=ac3f85c1-7562-437e-b125-e89576b9a38e&fa=lgc_2299_dropdown_17%3Algc_2299_dropdown_17_41959&sort=lowest_price&include_offline=1"
+            driver.get(url)
+            
+            # Wait for price element to be present
+            price_element = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, ".precheckout__price-card"))
+            )
+            price_text = price_element.text
+            
+            # Extract price using regex
+            price_match = re.search(r'\d+\.\d+', price_text)
+            if price_match:
+                price = float(price_match.group())
+                logger.info(f"Kazzak price fetched: {price}")
+                return price
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching Kazzak price: {e}")
+            return None
+
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204
 
 @app.route('/health')
 def health_check():
     try:
-        with get_browser() as browser:
-            version = browser.version
-            return jsonify({
-                "status": "healthy",
-                "browser_version": version
-            }), 200
+        # Test both Selenium and API connectivity
+        with get_driver() as driver:
+            driver.get("https://www.google.com")
+        response = requests.get("https://api.nobitex.ir/v2/status", timeout=5)
+        response.raise_for_status()
+        return jsonify({
+            "status": "healthy",
+            "message": "Service is running"
+        }), 200
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
         return jsonify({
@@ -153,43 +139,40 @@ def health_check():
 def Tarren():
     try:
         logger.info("Processing Tarren-Mill request...")
-        with get_browser() as browser:
-            usdt_price = get_usdt_price(browser)
-            if usdt_price is None:
-                return jsonify({"error": "Failed to fetch USDT price"}), 500
-            
-            best_offer = get_best_offer_Tarren(browser)
-            if best_offer is None:
-                return jsonify({"error": "Failed to fetch Tarren-Mill price"}), 500
-            
-            result = int(best_offer * usdt_price * 0.75)
-            logger.info(f"Tarren-Mill result calculated: {result}")
-            return jsonify({"Tarren-Mill": result})
+        usdt_price = get_usdt_price()
+        if usdt_price is None:
+            return jsonify({"error": "Failed to fetch USDT price"}), 500
+        
+        best_offer = get_best_offer_Tarren()
+        if best_offer is None:
+            return jsonify({"error": "Failed to fetch Tarren-Mill price"}), 500
+        
+        result = int(best_offer * usdt_price * 0.75 / 10)
+        logger.info(f"Tarren-Mill result calculated: {result}")
+        return jsonify({"price": result})
     except Exception as e:
-        logger.error(f"Error processing Tarren-Mill request: {e}")
+        logger.error(f"Error processing Tarren request: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/Kazzak', methods=['GET'])
 def Kazzak():
     try:
         logger.info("Processing Kazzak request...")
-        with get_browser() as browser:
-            usdt_price = get_usdt_price(browser)
-            if usdt_price is None:
-                return jsonify({"error": "Failed to fetch USDT price"}), 500
-            
-            best_offer = get_best_offer_Kazzak(browser)
-            if best_offer is None:
-                return jsonify({"error": "Failed to fetch Kazzak price"}), 500
-            
-            result = int(best_offer * usdt_price * 0.75)
-            logger.info(f"Kazzak result calculated: {result}")
-            return jsonify({"Kazzak": result})
+        usdt_price = get_usdt_price()
+        if usdt_price is None:
+            return jsonify({"error": "Failed to fetch USDT price"}), 500
+        
+        best_offer = get_best_offer_Kazzak()
+        if best_offer is None:
+            return jsonify({"error": "Failed to fetch Kazzak price"}), 500
+        
+        result = int(best_offer * usdt_price * 0.75 / 10)
+        logger.info(f"Kazzak result calculated: {result}")
+        return jsonify({"price": result})
     except Exception as e:
         logger.error(f"Error processing Kazzak request: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    import os
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
