@@ -5,30 +5,21 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Chrome and dependencies
-RUN apt-get update && apt-get install -y wget gnupg2 unzip curl \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list \
-    && apt-get update && apt-get install -y \
-    google-chrome-stable \
-    xvfb \
+# Install system dependencies
+RUN apt-get update && apt-get install -y wget gnupg2 unzip curl xvfb \
     && rm -rf /var/lib/apt/lists/*
 
-# Install specific version of ChromeDriver
-RUN wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/119.0.6045.105/chromedriver_linux64.zip" \
-    && cd /tmp \
-    && unzip chromedriver.zip \
-    && mv chromedriver /usr/local/bin/ \
+# Install Chrome for Testing and ChromeDriver
+RUN wget -O chrome-linux.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/119.0.6045.105/linux64/chrome-linux64.zip" \
+    && wget -O chromedriver.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/119.0.6045.105/linux64/chromedriver-linux64.zip" \
+    && unzip chrome-linux.zip -d /opt/ \
+    && unzip chromedriver.zip -d /opt/ \
+    && mv /opt/chromedriver-linux64/chromedriver /usr/local/bin/ \
     && chmod +x /usr/local/bin/chromedriver \
-    && rm -f /tmp/chromedriver.zip
-
-# Install specific version of Chrome
-RUN apt-get update && apt-get install -y \
-    google-chrome-stable=119.0.6045.105-1 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -f chrome-linux.zip chromedriver.zip
 
 # Set Chrome paths
-ENV CHROME_BIN=/usr/bin/google-chrome
+ENV CHROME_BIN=/opt/chrome-linux64/chrome
 ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
 
 # Create and set working directory
@@ -44,7 +35,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Verify Chrome and ChromeDriver installation
-RUN google-chrome --version && chromedriver --version
+RUN $CHROME_BIN --version && chromedriver --version
 
 # Expose port
 EXPOSE 5000
