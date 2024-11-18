@@ -1,17 +1,27 @@
+# requirements.txt
+Flask==2.3.3
+playwright==1.41.1
+gunicorn==21.2.0
+
+# Procfile
+web: gunicorn app:app
+
+# railway.toml
 [build]
-builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
+builder = "nixpacks"
+buildCommand = "pip install -r requirements.txt && playwright install chromium && playwright install-deps"
 
-[[services]]
-name = "web"
-protocol = "http"
-internal_port = 8080
+[deploy]
+startCommand = "gunicorn api:app --worker-class gevent --workers 2 --timeout 180 --graceful-timeout 120 --max-requests 1000 --max-requests-jitter 50"
+healthcheckPath = "/health"
+healthcheckTimeout = 180
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 3
 
-[services.restart_policy]
-condition = "on-failure"
-max_retries = 3
+[deploy.resources]
+memory = 1024
+cpu = 1
 
-[services.concurrency]
-type = "connections"
-hard_limit = 25
-soft_limit = 20
+[deploy.env]
+PYTHONUNBUFFERED = "1"
+PLAYWRIGHT_BROWSERS_PATH = "0"
