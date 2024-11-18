@@ -4,6 +4,9 @@ FROM python:3.12-slim
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
+ENV DISPLAY=:99
+ENV CHROME_BIN=/opt/chrome-linux64/chrome
+ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -49,10 +52,6 @@ RUN wget -O chrome-linux.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-fo
     && chmod +x /opt/chrome-linux64/chrome \
     && rm -f chrome-linux.zip chromedriver.zip
 
-# Set Chrome paths
-ENV CHROME_BIN=/opt/chrome-linux64/chrome
-ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
-
 # Create and set working directory
 WORKDIR /app
 
@@ -65,11 +64,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application
 COPY . .
 
-# Verify Chrome and ChromeDriver installation
-RUN python -c "from selenium import webdriver; from selenium.webdriver.chrome.options import Options; options = Options(); options.add_argument('--headless'); options.binary_location = '$CHROME_BIN'; webdriver.Chrome(options=options).quit()"
-
-# Expose port
-EXPOSE 5000
+# Create a script to start Xvfb and the application
+RUN echo '#!/bin/bash\nXvfb :99 -screen 0 1280x1024x24 &\nsleep 1\nexec "$@"' > /usr/local/bin/start.sh \
+    && chmod +x /usr/local/bin/start.sh
 
 # Start command with health check
-CMD gunicorn --preload api:app --bind 0.0.0.0:${PORT:-5000} --timeout 180 --workers 1
+ENTRYPOINT ["/usr/local/bin/start.sh"]
+CMD ["gunicorn", "--preload", "api:app", "--bind", "0.0.0.0:${PORT:-5000}", "--timeout", "180", "--workers", "1"]
