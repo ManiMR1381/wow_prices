@@ -11,18 +11,24 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from contextlib import contextmanager
 import chromedriver_autoinstaller
+import sys
 
-# Configure logging
+# Configure logging to output to stdout
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
 # Install ChromeDriver that matches Chrome version
-chromedriver_autoinstaller.install()
+try:
+    chromedriver_autoinstaller.install()
+    logger.info("ChromeDriver installed successfully")
+except Exception as e:
+    logger.error(f"Error installing ChromeDriver: {e}")
 
 @contextmanager
 def get_driver():
@@ -36,14 +42,20 @@ def get_driver():
         chrome_options.add_argument('--disable-gpu')
         chrome_options.add_argument('--disable-extensions')
         chrome_options.add_argument('--disable-software-rasterizer')
+        chrome_options.add_argument('--remote-debugging-port=9222')
         
+        logger.info("Creating Chrome driver with options")
         driver = webdriver.Chrome(options=chrome_options)
         driver.set_page_load_timeout(30)
         yield driver
+    except Exception as e:
+        logger.error(f"Error creating Chrome driver: {e}")
+        raise
     finally:
         if driver:
             try:
                 driver.quit()
+                logger.info("Chrome driver closed successfully")
             except Exception as e:
                 logger.error(f"Error closing driver: {e}")
 
@@ -59,6 +71,7 @@ def get_usdt_price():
             price = float(data['lastTradePrice'])
             logger.info(f"USDT price fetched: {price}")
             return price
+        logger.warning("No lastTradePrice in Nobitex response")
         return None
     except Exception as e:
         logger.error(f"Error fetching USDT price: {e}")
@@ -69,20 +82,22 @@ def get_best_offer_Tarren():
     with get_driver() as driver:
         try:
             url = "https://www.g2g.com/offer/Tarren-Mill--EU----Horde?service_id=lgc_service_1&brand_id=lgc_game_2299&region_id=ac3f85c1-7562-437e-b125-e89576b9a38e&fa=lgc_2299_dropdown_17%3Algc_2299_dropdown_17_42127&sort=lowest_price&include_offline=1"
+            logger.info(f"Fetching Tarren Mill price from: {url}")
             driver.get(url)
             
-            # Wait for price element to be present
+            logger.info("Waiting for price element")
             price_element = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, ".precheckout__price-card"))
             )
             price_text = price_element.text
+            logger.info(f"Price text found: {price_text}")
             
-            # Extract price using regex
             price_match = re.search(r'\d+\.\d+', price_text)
             if price_match:
                 price = float(price_match.group())
-                logger.info(f"Tarren Mill price fetched: {price}")
+                logger.info(f"Tarren Mill price extracted: {price}")
                 return price
+            logger.warning("No price found in text")
             return None
         except Exception as e:
             logger.error(f"Error fetching Tarren price: {e}")
@@ -93,20 +108,22 @@ def get_best_offer_Kazzak():
     with get_driver() as driver:
         try:
             url = "https://www.g2g.com/offer/Kazzak--EU----Horde?service_id=lgc_service_1&brand_id=lgc_game_2299&region_id=ac3f85c1-7562-437e-b125-e89576b9a38e&fa=lgc_2299_dropdown_17%3Algc_2299_dropdown_17_41959&sort=lowest_price&include_offline=1"
+            logger.info(f"Fetching Kazzak price from: {url}")
             driver.get(url)
             
-            # Wait for price element to be present
+            logger.info("Waiting for price element")
             price_element = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, ".precheckout__price-card"))
             )
             price_text = price_element.text
+            logger.info(f"Price text found: {price_text}")
             
-            # Extract price using regex
             price_match = re.search(r'\d+\.\d+', price_text)
             if price_match:
                 price = float(price_match.group())
-                logger.info(f"Kazzak price fetched: {price}")
+                logger.info(f"Kazzak price extracted: {price}")
                 return price
+            logger.warning("No price found in text")
             return None
         except Exception as e:
             logger.error(f"Error fetching Kazzak price: {e}")
@@ -119,11 +136,11 @@ def favicon():
 @app.route('/health')
 def health_check():
     try:
-        # Test both Selenium and API connectivity
-        with get_driver() as driver:
-            driver.get("https://www.google.com")
+        # Only check API connectivity for health check
+        logger.info("Starting health check")
         response = requests.get("https://api.nobitex.ir/v2/status", timeout=5)
         response.raise_for_status()
+        logger.info("Health check successful")
         return jsonify({
             "status": "healthy",
             "message": "Service is running"
