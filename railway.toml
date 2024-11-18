@@ -9,7 +9,7 @@ playwright install-deps
 """
 
 [deploy]
-startCommand = "gunicorn api:app --worker-class gevent --workers 2 --timeout 180 --graceful-timeout 120 --max-requests 1000 --max-requests-jitter 50"
+startCommand = "gunicorn api:app --workers 2 --timeout 180 --graceful-timeout 120 --max-requests 1000 --max-requests-jitter 50"
 healthcheckPath = "/health"
 healthcheckTimeout = 180
 restartPolicy = "always"
