@@ -120,6 +120,23 @@ def get_best_offer_Kazzak(playwright):
         if browser:
             browser.close()
 
+# Initialize Playwright browser at startup
+browser = None
+
+def initialize_browser():
+    global browser
+    try:
+        playwright = sync_playwright().start()
+        browser = playwright.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
+        return True
+    except Exception as e:
+        logger.error(f"Failed to initialize browser: {e}")
+        return False
+
+@app.before_first_request
+def startup():
+    initialize_browser()
+
 @app.route('/Tarren-Mill', methods=['GET'])
 def Tarren():
     try:
@@ -162,12 +179,13 @@ def Kazzak():
 
 @app.route('/health', methods=['GET'])
 def health_check():
+    global browser
     try:
-        # Test if we can launch a browser
-        with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
-            browser.close()
-        return jsonify({"status": "healthy", "message": "Browser test successful"}), 200
+        # Check if browser is initialized
+        if browser is None or not browser.is_connected():
+            if not initialize_browser():
+                return jsonify({"status": "unhealthy", "error": "Browser initialization failed"}), 503
+        return jsonify({"status": "healthy", "message": "Service is running"}), 200
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
         return jsonify({"status": "unhealthy", "error": str(e)}), 503
