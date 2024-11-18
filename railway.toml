@@ -1,9 +1,9 @@
 [build]
-builder = "nixpacks"
+builder = "DOCKERFILE"
 buildCommand = "apt-get update && apt-get install -y chromium-browser chromium-chromedriver"
 
 [deploy]
-startCommand = "gunicorn api:app"
+startCommand = "gunicorn api:app --bind 0.0.0.0:$PORT --timeout 180"
 healthcheckPath = "/health"
 healthcheckTimeout = 180
 restartPolicyType = "always"
