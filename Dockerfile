@@ -11,10 +11,13 @@ RUN apt-get update && apt-get install -y wget gnupg2 unzip \
     && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list \
     && apt-get update && apt-get install -y \
     google-chrome-stable \
+    xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 # Install ChromeDriver
-RUN wget -O /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/114.0.5735.90/chromedriver_linux64.zip \
+RUN CHROME_VERSION=$(google-chrome --version | cut -d ' ' -f 3 | cut -d '.' -f 1) \
+    && CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION}") \
+    && wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip" \
     && cd /tmp \
     && unzip chromedriver.zip \
     && mv chromedriver /usr/local/bin/ \
@@ -37,8 +40,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application
 COPY . .
 
+# Verify Chrome and ChromeDriver installation
+RUN google-chrome --version && chromedriver --version
+
 # Expose port
 EXPOSE 5000
 
-# Start command
-CMD gunicorn api:app --bind 0.0.0.0:${PORT:-5000} --timeout 180 --workers 1
+# Start command with health check
+CMD gunicorn --preload api:app --bind 0.0.0.0:${PORT:-5000} --timeout 180 --workers 1
