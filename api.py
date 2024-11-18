@@ -1,18 +1,46 @@
 import re
 import logging
+import os
 from flask import Flask, jsonify, send_from_directory
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
-import os
+from contextlib import contextmanager
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+@contextmanager
+def get_browser():
+    """Context manager for browser handling"""
+    playwright = None
+    browser = None
+    try:
+        playwright = sync_playwright().start()
+        browser = playwright.chromium.launch(
+            headless=True,
+            args=['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+        )
+        yield browser
+    finally:
+        if browser:
+            try:
+                browser.close()
+            except Exception as e:
+                logger.error(f"Error closing browser: {e}")
+        if playwright:
+            try:
+                playwright.stop()
+            except Exception as e:
+                logger.error(f"Error stopping playwright: {e}")
+
 @app.route('/favicon.ico')
 def favicon():
-    return '', 204  # Return a 204 No Content response for favicon requests
+    return '', 204
 
 def remove_commas(number_str):
     """Remove commas and convert to an integer."""
@@ -31,11 +59,9 @@ def extract_price(input_str):
         logger.error(f"Error extracting price: {e}")
         return None
 
-def get_usdt_price(playwright):
+def get_usdt_price(browser):
     """Fetch the USDT price from Nobitex."""
-    browser = None
     try:
-        browser = playwright.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
         context = browser.new_context()
         page = context.new_page()
         page.set_default_timeout(30000)  # 30 seconds timeout
@@ -60,15 +86,10 @@ def get_usdt_price(playwright):
     except Exception as e:
         logger.error(f"Error fetching USDT price: {e}")
         return None
-    finally:
-        if browser:
-            browser.close()
 
-def get_best_offer_Tarren(playwright):
+def get_best_offer_Tarren(browser):
     """Fetch the best offer from G2G."""
-    browser = None
     try:
-        browser = playwright.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
         context = browser.new_context()
         page = context.new_page()
         page.set_default_timeout(30000)  # 30 seconds timeout
@@ -88,15 +109,10 @@ def get_best_offer_Tarren(playwright):
     except Exception as e:
         logger.error(f"Error fetching Tarren price: {e}")
         return None
-    finally:
-        if browser:
-            browser.close()
 
-def get_best_offer_Kazzak(playwright):
+def get_best_offer_Kazzak(browser):
     """Fetch the best offer from G2G."""
-    browser = None
     try:
-        browser = playwright.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
         context = browser.new_context()
         page = context.new_page()
         page.set_default_timeout(30000)  # 30 seconds timeout
@@ -116,37 +132,33 @@ def get_best_offer_Kazzak(playwright):
     except Exception as e:
         logger.error(f"Error fetching Kazzak price: {e}")
         return None
-    finally:
-        if browser:
-            browser.close()
 
-# Initialize Playwright browser at startup
-browser = None
-
-def initialize_browser():
-    global browser
+@app.route('/health')
+def health_check():
     try:
-        playwright = sync_playwright().start()
-        browser = playwright.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'])
-        return True
+        with get_browser() as browser:
+            version = browser.version
+            return jsonify({
+                "status": "healthy",
+                "browser_version": version
+            }), 200
     except Exception as e:
-        logger.error(f"Failed to initialize browser: {e}")
-        return False
-
-@app.before_first_request
-def startup():
-    initialize_browser()
+        logger.error(f"Health check failed: {str(e)}")
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e)
+        }), 503
 
 @app.route('/Tarren-Mill', methods=['GET'])
 def Tarren():
     try:
         logger.info("Processing Tarren-Mill request...")
-        with sync_playwright() as playwright:
-            usdt_price = get_usdt_price(playwright)
+        with get_browser() as browser:
+            usdt_price = get_usdt_price(browser)
             if usdt_price is None:
                 return jsonify({"error": "Failed to fetch USDT price"}), 500
             
-            best_offer = get_best_offer_Tarren(playwright)
+            best_offer = get_best_offer_Tarren(browser)
             if best_offer is None:
                 return jsonify({"error": "Failed to fetch Tarren-Mill price"}), 500
             
@@ -161,12 +173,12 @@ def Tarren():
 def Kazzak():
     try:
         logger.info("Processing Kazzak request...")
-        with sync_playwright() as playwright:
-            usdt_price = get_usdt_price(playwright)
+        with get_browser() as browser:
+            usdt_price = get_usdt_price(browser)
             if usdt_price is None:
                 return jsonify({"error": "Failed to fetch USDT price"}), 500
             
-            best_offer = get_best_offer_Kazzak(playwright)
+            best_offer = get_best_offer_Kazzak(browser)
             if best_offer is None:
                 return jsonify({"error": "Failed to fetch Kazzak price"}), 500
             
@@ -176,19 +188,6 @@ def Kazzak():
     except Exception as e:
         logger.error(f"Error processing Kazzak request: {e}")
         return jsonify({"error": str(e)}), 500
-
-@app.route('/health', methods=['GET'])
-def health_check():
-    global browser
-    try:
-        # Check if browser is initialized
-        if browser is None or not browser.is_connected():
-            if not initialize_browser():
-                return jsonify({"status": "unhealthy", "error": "Browser initialization failed"}), 503
-        return jsonify({"status": "healthy", "message": "Service is running"}), 200
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        return jsonify({"status": "unhealthy", "error": str(e)}), 503
 
 if __name__ == '__main__':
     import os
