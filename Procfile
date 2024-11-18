@@ -1,1 +1,1 @@
-web: PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers python -m playwright install chromium && gunicorn api:app --workers 2 --timeout 180 --graceful-timeout 120 --max-requests 1000 --max-requests-jitter 50
+web: gunicorn api:app --workers 2 --timeout 180 --graceful-timeout 120 --max-requests 1000 --max-requests-jitter 50
