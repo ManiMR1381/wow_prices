@@ -34,6 +34,9 @@ RUN apt-get update && apt-get install -y \
     libxrandr2 \
     libpango-1.0-0 \
     libcairo2 \
+    # Additional dependencies
+    libdbus-1-3 \
+    libatspi2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Chrome for Testing and ChromeDriver
@@ -43,6 +46,7 @@ RUN wget -O chrome-linux.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-fo
     && unzip chromedriver.zip -d /opt/ \
     && mv /opt/chromedriver-linux64/chromedriver /usr/local/bin/ \
     && chmod +x /usr/local/bin/chromedriver \
+    && chmod +x /opt/chrome-linux64/chrome \
     && rm -f chrome-linux.zip chromedriver.zip
 
 # Set Chrome paths
@@ -62,7 +66,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Verify Chrome and ChromeDriver installation
-RUN $CHROME_BIN --version && chromedriver --version
+RUN python -c "from selenium import webdriver; from selenium.webdriver.chrome.options import Options; options = Options(); options.add_argument('--headless'); options.binary_location = '$CHROME_BIN'; webdriver.Chrome(options=options).quit()"
 
 # Expose port
 EXPOSE 5000
