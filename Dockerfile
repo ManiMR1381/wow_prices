@@ -1,50 +1,72 @@
-# Use Python 3.12 slim image
-FROM python:3.12-slim
+FROM ubuntu:22.04
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 
-# Install Chrome and dependencies
-RUN apt-get update && apt-get install -y wget gnupg2 unzip curl \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list \
-    && apt-get update && apt-get install -y \
-    google-chrome-stable \
+# Install system dependencies and Python
+RUN apt-get update && apt-get install -y \
+    python3.11 \
+    python3-pip \
+    python3.11-venv \
+    wget \
+    gnupg \
+    libglib2.0-0 \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libdbus-1-3 \
+    libxcb1 \
+    libxkbcommon0 \
+    libatspi2.0-0 \
+    libx11-6 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
+    fonts-liberation \
     xvfb \
     && rm -rf /var/lib/apt/lists/*
 
-# Install ChromeDriver
-RUN CHROME_VERSION=$(google-chrome --version | cut -d ' ' -f 3 | cut -d '.' -f 1) \
-    && CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION}") \
-    && wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip" \
-    && cd /tmp \
-    && unzip chromedriver.zip \
-    && mv chromedriver /usr/local/bin/ \
-    && chmod +x /usr/local/bin/chromedriver \
-    && rm -f /tmp/chromedriver.zip
-
-# Set Chrome paths
-ENV CHROME_BIN=/usr/bin/google-chrome
-ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
-
-# Create and set working directory
 WORKDIR /app
 
-# Copy requirements first for better cache
+# Create and activate virtual environment
+RUN python3.11 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy and install requirements
 COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Playwright browsers
+RUN playwright install chromium && \
+    playwright install-deps
 
-# Copy the rest of the application
+# Copy application code
 COPY . .
 
-# Verify Chrome and ChromeDriver installation
-RUN google-chrome --version && chromedriver --version
+# Create a startup script
+RUN echo '#!/bin/bash\n\
+xvfb-run --server-args="-screen 0 1280x800x24" \
+gunicorn --bind 0.0.0.0:8080 \
+--timeout 120 \
+--workers 1 \
+--threads 4 \
+--preload \
+--max-requests 1000 \
+--max-requests-jitter 50 \
+app:app' > /app/start.sh && \
+chmod +x /app/start.sh
 
-# Expose port
-EXPOSE 5000
+EXPOSE 8080
 
-# Start command with health check
-CMD gunicorn --preload api:app --bind 0.0.0.0:${PORT:-5000} --timeout 180 --workers 1
+CMD ["/app/start.sh"]
