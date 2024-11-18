@@ -1,3 +1,4 @@
+# Use Python 3.12 slim image
 FROM python:3.12-slim
 
 # Set environment variables
@@ -8,6 +9,13 @@ ENV PORT=5000
 RUN apt-get update && apt-get install -y \
     chromium \
     chromium-driver \
+    xvfb \
+    libgconf-2-4 \
+    libnss3 \
+    libxss1 \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libgtk-3-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create and set working directory
@@ -22,8 +30,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application
 COPY . .
 
+# Set Chrome options
+ENV CHROME_BIN=/usr/bin/chromium
+ENV CHROME_PATH=/usr/lib/chromium/
+ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
+
 # Expose port
 EXPOSE $PORT
 
-# Start command
-CMD ["gunicorn", "api:app", "--bind", "0.0.0.0:5000", "--timeout", "180"]
+# Start command with increased timeout
+CMD ["gunicorn", "api:app", "--bind", "0.0.0.0:5000", "--timeout", "180", "--workers", "2"]
